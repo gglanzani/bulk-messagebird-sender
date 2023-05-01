@@ -4,12 +4,13 @@ import (
    "fmt"
    "os"
    "encoding/csv"
-   "encoding/json"
    "io"
    "log"
 
    "github.com/messagebird/go-rest-api"
    "github.com/messagebird/go-rest-api/sms"
+   "github.com/ilyakaznacheev/cleanenv"
+
 
 )
 
@@ -30,19 +31,16 @@ func send(client *messagebird.Client, sender string, recipient string, first str
 }
 
 type Configuration struct {
-  Api       string `json: "api"`
-  Message   string `json: "message"`
-  Sender    string `json: "sender"`
+  Api       string `env:"MESSAGEBIRD_API"`
+  Message   string `yaml: "message" env:"MESSAGEBIRD_MESSAGE"`
+  Sender    string `yaml: "sender" env:"MESSAGEBIRD_SENDER"`
 }
 
 func getConfig() Configuration {
+  var configuration Configuration
 
+  err := cleanenv.ReadConfig("config.yml", &configuration)
 
-  file, _ := os.Open("config.json")
-  defer file.Close()
-  decoder := json.NewDecoder(file)
-  configuration := Configuration{}
-  err := decoder.Decode(&configuration)
   if err != nil {
     fmt.Println("error:", err)
   }
