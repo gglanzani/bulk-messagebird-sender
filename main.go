@@ -10,13 +10,21 @@ import (
    "github.com/messagebird/go-rest-api"
    "github.com/messagebird/go-rest-api/sms"
    "github.com/ilyakaznacheev/cleanenv"
-
-
+   "github.com/noirbizarre/gonja"
 )
 
-func send(client *messagebird.Client, sender string, recipient string, first string, message string) {
-  text := fmt.Sprintf(message, first)
-   msg, err := sms.Create(
+func send(client *messagebird.Client, sender string, recipient string, name string, message string) {
+  tpl, err := gonja.FromString(message)
+  if err != nil {
+	panic(err)
+  }
+
+  text, err := tpl.Execute(gonja.Context{"name": name})
+  if err != nil {
+    panic(err)
+  }
+
+  msg, err := sms.Create(
        client,
        sender,
        []string{recipient},
