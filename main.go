@@ -13,13 +13,13 @@ import (
 	"github.com/noirbizarre/gonja"
 )
 
-func send(client *messagebird.Client, sender string, recipient string, name string, message string) {
+func send(client *messagebird.Client, sender string, recipient string, context gonja.Context, message string) {
 	tpl, err := gonja.FromString(message)
 	if err != nil {
 		panic(err)
 	}
 
-	text, err := tpl.Execute(gonja.Context{"name": name})
+	text, err := tpl.Execute(context)
 	if err != nil {
 		panic(err)
 	}
@@ -39,9 +39,12 @@ func send(client *messagebird.Client, sender string, recipient string, name stri
 }
 
 type Configuration struct {
-	Api     string `env:"MESSAGEBIRD_API"`
-	Message string `yaml:"message" env:"MESSAGEBIRD_MESSAGE"`
-	Sender  string `yaml:"sender" env:"MESSAGEBIRD_SENDER"`
+	Api         string   `env:"MESSAGEBIRD_API"`
+	Message     string   `yaml:"message" env:"MESSAGEBIRD_MESSAGE"`
+	Sender      string   `yaml:"sender" env:"MESSAGEBIRD_SENDER"`
+	Columns     []string `yaml:"columns"`
+	FileName    string   `yaml:"filename"`
+	PhoneColumn string   `yaml:"phoneColumn"`
 }
 
 func getConfig() Configuration {
@@ -55,28 +58,9 @@ func getConfig() Configuration {
 	return configuration
 }
 
-func main() {
-	configuration := getConfig()
-	api := configuration.Api
-	message := configuration.Message
-	sender := configuration.Sender
-
-	client := messagebird.New(api)
-
-	csvFileName := "names.csv"
-
-	// Open the CSV file
-	file, err := os.Open(csvFileName)
-	if err != nil {
-		log.Fatalf("Error opening file: %v", err)
-	}
-	defer file.Close()
-
-	// Create a CSV reader
-	reader := csv.NewReader(file)
-
+func processRecords(reader *csv.Reader, columns []string, phoneColumn string, message string, sender string, client *messagebird.Client) {
 	for {
-		record, err := reader.Read()
+		fields, err := reader.Read()
 		if err == io.EOF {
 			break // End of file, break the loop
 		}
@@ -84,10 +68,39 @@ func main() {
 			log.Fatalf("Error reading CSV: %v", err)
 		}
 
-		phone := record[2]
-		name := record[0]
+		zipped_record := gonja.Context{}
+
+		for index, field := range fields {
+			zipped_record[columns[index]] = field
+		}
+
+		phone := zipped_record[phoneColumn]
 
 		// Process the row (record) here
-		send(client, sender, phone, name, message)
+		send(client, sender, phone.(string), zipped_record, message)
 	}
+}
+
+func main() {
+	configuration := getConfig()
+	api := configuration.Api
+	message := configuration.Message
+	sender := configuration.Sender
+	phoneColumn := configuration.PhoneColumn
+	columns := configuration.Columns
+
+	client := messagebird.New(api)
+
+	// Open the CSV file
+	file, err := os.Open(configuration.FileName)
+	if err != nil {
+		log.Fatalf("Error opening file: %v", err)
+	}
+
+	// Create a CSV reader
+	reader := csv.NewReader(file)
+
+	processRecords(reader, columns, phoneColumn, message, sender, client)
+
+	file.Close()
 }

@@ -1,2 +1,6 @@
 message:
 sender:
+filename:
+columns:
+  - phone
+phoneColumn: phone
