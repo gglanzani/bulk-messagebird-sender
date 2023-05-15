@@ -13,17 +13,7 @@ import (
 	"github.com/noirbizarre/gonja"
 )
 
-func send(client *messagebird.Client, sender string, recipient string, context gonja.Context, message string) {
-	tpl, err := gonja.FromString(message)
-	if err != nil {
-		panic(err)
-	}
-
-	text, err := tpl.Execute(context)
-	if err != nil {
-		panic(err)
-	}
-
+func send(client *messagebird.Client, sender string, recipient string, text string) {
 	msg, err := sms.Create(
 		client,
 		sender,
@@ -58,27 +48,33 @@ func getConfig() Configuration {
 	return configuration
 }
 
-func processRecords(reader *csv.Reader, columns []string, phoneColumn string, message string, sender string, client *messagebird.Client) {
-	for {
-		fields, err := reader.Read()
-		if err == io.EOF {
-			break // End of file, break the loop
-		}
-		if err != nil {
-			log.Fatalf("Error reading CSV: %v", err)
-		}
-
-		zipped_record := gonja.Context{}
-
-		for index, field := range fields {
-			zipped_record[columns[index]] = field
-		}
-
-		phone := zipped_record[phoneColumn]
-
-		// Process the row (record) here
-		send(client, sender, phone.(string), zipped_record, message)
+func template(message string, context gonja.Context) string {
+	tpl, err := gonja.FromString(message)
+	if err != nil {
+		panic(err)
 	}
+
+	text, err := tpl.Execute(context)
+	if err != nil {
+		panic(err)
+	}
+
+	return text
+}
+
+func processRecords(fields []string, columns []string, phoneColumn string, message string, sender string, client *messagebird.Client) {
+	zipped_record := gonja.Context{}
+
+	for index, field := range fields {
+		zipped_record[columns[index]] = field
+	}
+
+	phone := zipped_record[phoneColumn]
+
+	text := template(message, zipped_record)
+
+	// Process the row (record) here
+	send(client, sender, phone.(string), text)
 }
 
 func main() {
@@ -100,7 +96,15 @@ func main() {
 	// Create a CSV reader
 	reader := csv.NewReader(file)
 
-	processRecords(reader, columns, phoneColumn, message, sender, client)
-
+	for {
+		fields, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Error reading CSV: %v", err)
+		}
+		processRecords(fields, columns, phoneColumn, message, sender, client)
+	}
 	file.Close()
 }
