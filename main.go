@@ -22,8 +22,13 @@ func send(client *messagebird.Client, sender string, recipient string, text stri
 		nil,
 	)
 	if err != nil {
-		log.Println(err)
+		mbErr, _ := err.(messagebird.ErrorResponse)
+	
+		fmt.Println("Code:", mbErr.Errors[0].Code)
+		fmt.Println("Description:", mbErr.Errors[0].Description)
+		fmt.Println("Parameter:", mbErr.Errors[0].Parameter)
 	}
+
 	// You can log the msg variable for development, or discard it by assigning it to `_`
 	log.Println(msg)
 }
@@ -62,7 +67,7 @@ func template(message string, context gonja.Context) string {
 	return text
 }
 
-func processRecords(fields []string, columns []string, phoneColumn string, message string, sender string, client *messagebird.Client) {
+func processRecords(fields []string, columns []string, phoneColumn string, message string) (string, string) {
 	zipped_record := gonja.Context{}
 
 	for index, field := range fields {
@@ -73,8 +78,8 @@ func processRecords(fields []string, columns []string, phoneColumn string, messa
 
 	text := template(message, zipped_record)
 
-	// Process the row (record) here
-	send(client, sender, phone.(string), text)
+	return phone.(string), text
+
 }
 
 func main() {
@@ -104,7 +109,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error reading CSV: %v", err)
 		}
-		processRecords(fields, columns, phoneColumn, message, sender, client)
+		phone, text := processRecords(fields, columns, phoneColumn, message)
+		send(client, sender, phone, text)
+
 	}
 	file.Close()
 }
